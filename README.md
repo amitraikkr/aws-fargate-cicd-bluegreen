@@ -1,6 +1,6 @@
-# Flask Application Deployment on AWS ECS with Fargate
+# Flask Application Deployment on AWS ECS with Fargate using CICD with Blue Green Deployment
 
-This project demonstrates the deployment of a Flask web application, containerized with Docker, on AWS Elastic Container Service (ECS) using the Fargate launch type. The application is a simple web server with two pages, demonstrating basic navigation and functionality.
+This project demonstrates the deployment of a Flask web application, containerized with Docker, on AWS Elastic Container Service (ECS) using the Fargate launch type. The application is a simple web server with two pages, demonstrating basic navigation and functionality. A CI/CD pipeline is established to automate the deployment process with Blue Green Deployment
 
 ## Project Structure
 
@@ -9,6 +9,10 @@ This project demonstrates the deployment of a Flask web application, containeriz
 - `Dockerfile`: Instructions for Docker to build the application container.
 - `/templates`: HTML templates for the web application.
 - `README.md`: Documentation about the project (this file).
+- `/stacks`: Folder contains three cloudformation templates
+- `network-stack.yaml`: Template creates network related resources like vpc, subnets etc.
+- `ecs-fargate-deployment.yml`: Template creates ECS Fargate application related resources
+- `cicd-pipeline.yml`: Template creates the CI/CD Pipeline
 
 ## Running the Application Locally
 
@@ -48,18 +52,13 @@ The application is deployed on AWS ECS using the Fargate launch type. The follow
 1. **Push the Docker Image to ECR:**
    - Tag and push the built Docker image to your AWS ECR repository.
 
-2. **Create an ECS Cluster and Task Definition:**
-   - Set up an ECS cluster and create a task definition with the ECR image.
+2. **Run the below Template to create network resources :**
+   - /stacks/network-stack.yaml
 
-3. **Configure and Run the ECS Service:**
-   - Configure networking, security groups, and other settings.
-   - Deploy the service in the ECS cluster.
+3. **Run the below Template to deploy application ECS Fargate:**
+   - ecs-fargate-deployment.yml
 
-For detailed deployment steps, refer to the AWS ECS documentation.
-
-## Security Considerations
-
-- Ensure that the security groups for ECS tasks allow only the necessary traffic.
-- Use IAM roles and policies to securely manage access to AWS resources.
+4. **Run the below Template to set up CI/CD Pipeline:**
+   - ecs-fargate-deployment.yml
 
 

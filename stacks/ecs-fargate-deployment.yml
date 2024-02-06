@@ -1,0 +1,140 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  DockerImageUri:
+    Type: String
+    Description: The URI of the Docker image to use in the task definition.
+    Default: '868658902285.dkr.ecr.us-east-2.amazonaws.com/aws-fargate-app-cicd:v1'
+
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+
+  FargateTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: my-fargate-app
+      Cpu: '256'
+      Memory: '512'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX      
+      ContainerDefinitions:
+        - Name: my-container-app
+          Image: !Ref DockerImageUri 
+          PortMappings:
+            - ContainerPort: 5004
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/my-fargate-app
+              awslogs-region: us-east-2
+              awslogs-stream-prefix: ecs
+
+  FargateService:
+    Type: AWS::ECS::Service
+    DependsOn: 
+      - myLoadBalancer
+      - Listener
+    Properties:
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref FargateTaskDefinition
+      LaunchType: FARGATE
+      ServiceName: myService-v1
+      SchedulingStrategy: REPLICA
+      DesiredCount: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !ImportValue NetworkStack-PublicSubnetOneId
+            - !ImportValue NetworkStack-PublicSubnetTwoId
+            - !ImportValue NetworkStack-PublicSubnetThreeId            
+          SecurityGroups:
+            - !Ref FargateSecurityGroup
+      PlatformVersion: LATEST
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+        DeploymentCircuitBreaker:
+          Enable: false
+          Rollback: false
+      DeploymentController:
+        Type: ECS
+      ServiceConnectConfiguration:
+        Enabled: false
+      Tags: []
+      EnableECSManagedTags: true
+      LoadBalancers:
+        - TargetGroupArn: !Ref TargetGroup
+          ContainerName: "my-container-app"
+          ContainerPort: 5004
+
+  FargateSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to client
+      VpcId: !ImportValue NetworkStack-VPCId
+      SecurityGroupIngress: 
+        - CidrIp: 0.0.0.0/0
+          Description: "Allow traffic from ALB to Fargate on port 5004"
+          FromPort: 5004
+          IpProtocol: tcp
+          ToPort: 5004
+
+  CloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/my-fargate-app
+      RetentionInDays: 14
+
+
+  myLoadBalancer:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Type: application
+      SecurityGroups: 
+        - !Ref FargateSecurityGroup
+      Subnets: 
+        - !ImportValue NetworkStack-PublicSubnetOneId
+        - !ImportValue NetworkStack-PublicSubnetTwoId
+        - !ImportValue NetworkStack-PublicSubnetThreeId 
+      Tags:
+        - Key: "Name"
+          Value: "myALBNamev2"
+  
+  TargetGroup:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      HealthCheckPath: /
+      Name: testALBTgtv3
+      Port: 80
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckProtocol: HTTP
+      VpcId: !ImportValue NetworkStack-VPCId
+  
+  Listener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+      LoadBalancerArn: !Ref myLoadBalancer
+      Port: 80
+      Protocol: HTTP

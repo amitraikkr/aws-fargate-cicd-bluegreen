@@ -1,0 +1,18 @@
+version: 0.0
+Resources:
+  - TargetService:
+      Type: AWS::ECS::Service
+      Properties:
+        TaskDefinition: <TASK_DEFINITION_FAMILY_NAME>:<TASK_DEFINITION_REVISION>
+        LoadBalancerInfo:
+          ContainerName: "my-app"
+          ContainerPort: 80
+Hooks:
+  - BeforeInstall: 
+      - Name: "PreTrafficHook"
+        LifecycleEvent: "BeforeInstall"
+        IAMRoleArn: "arn:aws:iam::<AWS_ACCOUNT_ID>:role/<LIFECYCLE_HOOK_ROLE>"
+  - AfterInstall:
+      - Name: "PostTrafficHook"
+        LifecycleEvent: "AfterInstall"
+        IAMRoleArn: "arn:aws:iam::<AWS_ACCOUNT_ID>:role/<LIFECYCLE_HOOK_ROLE>"
